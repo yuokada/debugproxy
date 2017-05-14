@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -53,14 +54,23 @@ func (t *transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 }
 
 func main() {
-	us := "http://localhost:8000/"
-	u, _ := url.Parse(us)
+	var dst string
+	var port int
+	flag.StringVar(&dst, "dst", "http://localhost:8080", "proxy destination")
+	flag.IntVar(&port, "port", 8081, "listen port")
+	flag.Parse()
+	log.Println(dst)
+	u, err := url.Parse(dst)
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
 
 	// see: http://stackoverflow.com/questions/31535569/golang-how-to-read-response-body-of-reverseproxy
 	proxy := httputil.NewSingleHostReverseProxy(u)
 	proxy.Transport = &transport{http.DefaultTransport}
 	http.Handle("/", proxy)
-	err := http.ListenAndServe(":8081", proxy)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", port), proxy)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
