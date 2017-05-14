@@ -59,7 +59,6 @@ func main() {
 	flag.StringVar(&dst, "dst", "http://localhost:8080", "proxy destination")
 	flag.IntVar(&port, "port", 8081, "listen port")
 	flag.Parse()
-	log.Println(dst)
 	u, err := url.Parse(dst)
 	if err != nil {
 		log.Println(err)
