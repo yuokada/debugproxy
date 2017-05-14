@@ -1,6 +1,6 @@
 # debugproxy
 [![GoDoc](https://godoc.org/github.com/yuokada/debugproxy?status.svg)](https://godoc.org/github.com/yuokada/debugproxy)  
-Proxy server for request debug
+Proxy server for debugging request/response 
 
 ## Install
 
