@@ -19,6 +19,7 @@ type transport struct {
 }
 
 func debugPrint(dumps string) {
+	// TODO: From -> TO のIPを入れたい
 	fmt.Println("------- Debug start --------")
 	fmt.Print(dumps)
 	fmt.Println("------- Debug end --------")
