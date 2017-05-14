@@ -1,70 +1,68 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httputil"
-	"github.com/gorilla/mux"
 	"net/url"
-	"log"
 	"os"
-	"io"
+	"strconv"
 )
 
-const (
-	defaultHandlerName = "localhost.com"
-	defaultHeaderKey = "Hostname"
-)
-
-func debugFunc(w http.ResponseWriter, r *http.Request, )  {
-	dump, _ := httputil.DumpRequest(r, true)
-	fmt.Fprintln(w, string(dump))
-	fmt.Println(string(dump), "\n", "------------------")
-	return
+type transport struct {
+	http.RoundTripper
 }
 
-func DumpDebugHandler(f http.Handler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		dump, _ := httputil.DumpRequest(r, true)
-		fmt.Println(string(dump), "\n", "------------------")
-		f.ServeHTTP(w, r)
+func debugPrint(dumps string) {
+	fmt.Println("------- Debug start --------")
+	fmt.Print(dumps)
+	fmt.Println("------- Debug end --------")
+}
+
+func (t *transport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
+	dumps, err := httputil.DumpRequest(req, true)
+	if err != nil {
+		return nil, err
 	}
-	return http.HandlerFunc(fn)
-}
+	debugPrint(string(dumps))
 
-func HostnameHeaderHandler(f http.Handler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		hostname, err := os.Hostname()
-		if err != nil {
-			log.Printf("ERROR: %s : %s\n", defaultHandlerName, err)
-		}
-		w.Header().Set(defaultHeaderKey, hostname)
-		f.ServeHTTP(w, r)
+	resp, err = t.RoundTripper.RoundTrip(req)
+	if err != nil {
+		return nil, err
 	}
-	return http.HandlerFunc(fn)
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	b = bytes.Replace(b, []byte("server"), []byte("schmerver"), -1)
+	body := ioutil.NopCloser(bytes.NewReader(b))
+	resp.ContentLength = int64(len(b))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(b)))
+	resp.Body = body
+	_body, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		return nil, err
+	}
+	debugPrint(string(_body))
+	return resp, nil
 }
 
-func main(){
-	bm := mux.NewRouter()
-	bm.HandleFunc("/{ep:[a-z/0-9]+}", debugFunc)
+func main() {
 	us := "http://localhost:8000/"
 	u, _ := url.Parse(us)
-	proxy := httputil.NewSingleHostReverseProxy(u)
-	pp :=  DumpDebugHandler(HostnameHeaderHandler(proxy))
-	err := http.ListenAndServe(":8081", pp)
-	//m  := mux.NewRouter()
-	//m.HandleFunc("/{ep:[a-z/0-9]+}", handler(proxy))
-	//err := http.ListenAndServe(":8081", m)
 
+	// see: http://stackoverflow.com/questions/31535569/golang-how-to-read-response-body-of-reverseproxy
+	proxy := httputil.NewSingleHostReverseProxy(u)
+	proxy.Transport = &transport{http.DefaultTransport}
+	http.Handle("/", proxy)
+	err := http.ListenAndServe(":8081", proxy)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
-	}
-}
-
-func handler(p *httputil.ReverseProxy) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = mux.Vars(r)["rest"]
-		p.ServeHTTP(w, r)
 	}
 }
